@@ -8,11 +8,9 @@ import {
   Camera, 
   Search,
   Upload,
-  BarChart3,
   Home,
   Menu,
   X,
-  User,
   ChevronDown
 } from 'lucide-react';
 import { api } from '../utils/api';
@@ -181,24 +179,6 @@ const Header: React.FC<HeaderProps> = ({
 
             {/* Right section */}
             <div className="flex items-center space-x-4">
-              {/* Comparison Button - visible when not on home page */}
-              {location.pathname !== '/' && (
-                <button
-                  onClick={() => {
-                    const searchData = sessionStorage.getItem('searchResults');
-                    if (searchData) {
-                      navigate('/result');
-                    } else {
-                      showToast('info', 'Please perform a search first to view comparisons.');
-                    }
-                  }}
-                  className="hidden md:flex items-center space-x-2 px-3 py-2 text-gray-600 hover:text-gray-900 hover:bg-gray-50 rounded-lg transition-colors duration-200"
-                >
-                  <BarChart3 size={18} />
-                  <span className="font-medium">Compare</span>
-                </button>
-              )}
-
               {/* User Menu */}
               <div className="relative">
                 <button
