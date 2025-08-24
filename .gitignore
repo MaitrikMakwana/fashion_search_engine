@@ -1,0 +1,66 @@
+# Node
+node_modules
+
+# Debug logs
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+lerna-debug.log*
+
+# Logs
+logs/
+*.log
+
+# Env / secrets (do not commit API keys)
+.env
+.env.*
+!.env.example
+.env.local
+.env.development.local
+.env.test.local
+.env.production.local
+
+# Build / coverage / dist / caches
+coverage/
+dist/
+build/
+.tmp/
+tmp/
+temp/
+.cache/
+.parcel-cache/
+.eslintcache
+.nyc_output/
+
+# OS / Editor
+.DS_Store
+.vscode/
+.idea/
+
+# Tooling metadata
+.zencoder/
+
+# Dependency caches
+.pnpm-store/
+
+# Yarn PnP
+.pnp.*
+
+# TypeScript
+*.tsbuildinfo
+
+# Framework outputs (ignored if present)
+.next/
+.nuxt/
+.vite/
+
+# Serverless
+.serverless/
+
+# Docker local data
+docker-data/
+
+# Local uploads (if any)
+uploads/
+!.gitkeep

@@ -1,0 +1,262 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Search Result Details</title>
+  <style>
+    body { font-family: system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif; margin: 0; padding: 24px; background: #fafafa; color: #222; }
+    .container { max-width: 900px; margin: 0 auto; }
+    h1 { margin-bottom: 8px; }
+    .card { background: #fff; border: 1px solid #eee; border-radius: 12px; padding: 16px; box-shadow: 0 2px 8px rgba(0,0,0,0.04); }
+    .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)); gap: 12px; margin-top: 16px; }
+    .item { background: #fff; border: 1px solid #eee; border-radius: 10px; padding: 10px; display: flex; flex-direction: column; gap: 8px; }
+    .thumb { width: 100%; aspect-ratio: 1 / 1; object-fit: cover; border-radius: 8px; background: #f0f0f0; }
+    .title { font-size: 14px; line-height: 1.3; }
+    .price { font-weight: 700; }
+    .meta { color: #666; font-size: 12px; }
+    .query { color: #111; font-size: 16px; margin-top: 6px; font-weight: 600; }
+    .back { display: inline-block; margin-bottom: 12px; }
+    .note { font-size: 12px; color: #666; }
+  </style>
+  <script>
+    try { if (!localStorage.getItem('token')) location.replace('/login.html'); } catch {}
+  </script>
+</head>
+<body>
+  <div class="container">
+    <a href="/" class="back">← Back to search</a>
+    <div style="display:flex; align-items:center; gap:12px;">
+      <h1 style="flex:1;">Search Details</h1>
+      <button id="logoutBtn" class="secondary">Logout</button>
+    </div>
+    <div id="details" class="card"></div>
+
+    <div class="card" style="margin-top: 14px;">
+      <strong>Filters (client-side, applied after results):</strong>
+      <div class="row">
+        <div class="col">
+          <label for="minPrice">Min Price</label>
+          <input id="minPrice" type="text" placeholder="e.g., 300" />
+        </div>
+        <div class="col">
+          <label for="maxPrice">Max Price</label>
+          <input id="maxPrice" type="text" placeholder="e.g., 1500" />
+        </div>
+        <div class="col">
+          <label for="colors">Colors</label>
+          <input id="colors" type="text" placeholder="black, red | csv or |" />
+        </div>
+        <div class="col">
+          <label for="sizes">Sizes</label>
+          <input id="sizes" type="text" placeholder="M, L | csv or |" />
+        </div>
+        <div class="col">
+          <label for="brands">Brands</label>
+          <input id="brands" type="text" placeholder="nike, adidas | csv or |" />
+        </div>
+        <div class="col">
+          <label for="sortBy">Sort By</label>
+          <select id="sortBy">
+            <option value="">None</option>
+            <option value="price">Price</option>
+          </select>
+        </div>
+        <div class="col">
+          <label for="sortOrder">Order</label>
+          <select id="sortOrder">
+            <option value="asc">Asc</option>
+            <option value="desc">Desc</option>
+          </select>
+        </div>
+      </div>
+      <div class="actions">
+        <button id="applyFilters">Apply Filters</button>
+        <button id="resetFilters" class="secondary">Reset Filters</button>
+      </div>
+    </div>
+
+    <div class="card" style="margin-top:14px;">
+      <div style="display:flex; align-items:center; gap:8px;">
+        <span style="font-size:18px;">❤️ <strong>Wishlist</strong></span>
+        <button id="clearWishlist" class="secondary" style="margin-left:auto;">Clear</button>
+      </div>
+      <div id="wishlistGrid" class="grid" style="margin-top:10px;"></div>
+    </div>
+
+    <div class="grid" id="grid"></div>
+  </div>
+
+  <script>
+    // Client-side guard: if not logged in, go to login page first
+    try { if (!localStorage.getItem('token')) location.href = '/login.html'; } catch {}
+    function $(id) { return document.getElementById(id); }
+
+    function parsePriceToNumber(price) {
+      if (price == null) return null;
+      if (typeof price === 'number') return price;
+      const s = String(price).replace(/[\,\s]/g, '').replace(/[₹$€£]/g, '');
+      const m = s.match(/(\d+\.?\d*)/);
+      if (!m) return null;
+      const n = parseFloat(m[1]);
+      return Number.isFinite(n) ? n : null;
+    }
+
+    function toArray(val) {
+      if (!val) return [];
+      return String(val)
+        .split(/[,|]/)
+        .map(s => s.trim())
+        .filter(Boolean);
+    }
+
+    // ---- Wishlist (localStorage) ----
+    const WKEY = 'wishlist:v1';
+    function getWishlist() {
+      try { return JSON.parse(localStorage.getItem(WKEY) || '[]'); } catch { return []; }
+    }
+    function setWishlist(items) { localStorage.setItem(WKEY, JSON.stringify(items)); }
+    function makeKey(p) { return (p.link || p.title || '').toLowerCase(); }
+    function isSaved(p) { return getWishlist().some(x => makeKey(x) === makeKey(p)); }
+    function toggleSave(p) {
+      const wl = getWishlist();
+      const key = makeKey(p);
+      const idx = wl.findIndex(x => makeKey(x) === key);
+      if (idx >= 0) wl.splice(idx, 1); else wl.unshift(p);
+      setWishlist(wl);
+      renderWishlist();
+      applyFiltersAndRender();
+    }
+    function renderWishlist() {
+      const grid = $("wishlistGrid");
+      grid.innerHTML = '';
+      const wl = getWishlist();
+      for (const p of wl) {
+        const el = document.createElement('div');
+        el.className = 'item';
+        el.innerHTML = `
+          <img class="thumb" src="${p.thumbnail || ''}" alt="thumb" />
+          <div class="title">${p.title || ''}</div>
+          <div class="price">${p.price || ''}</div>
+          <div class="meta">${p.source || ''}</div>
+          ${p.link ? `<a href="${p.link}" target="_blank" rel="noopener">View</a>` : ''}
+          <button class="secondary">Remove</button>
+        `;
+        el.querySelector('button').addEventListener('click', () => toggleSave(p));
+        grid.appendChild(el);
+      }
+      if (!wl.length) grid.innerHTML = '<div class="note">No items saved yet.</div>';
+    }
+    $("clearWishlist").addEventListener('click', () => { setWishlist([]); renderWishlist(); });
+    window.addEventListener('load', renderWishlist);
+
+    function render(details) {
+      const d = $("details");
+      const q = details?.query || '';
+      const products = details?.products || [];
+
+      d.innerHTML = `
+        <div class="query">Gemini query: ${q || '(none)'} </div>
+        <div class="note">This is the corrected/refined phrase returned by Gemini before product search.</div>
+      `;
+
+      window.__allProducts = products;
+      applyFiltersAndRender();
+    }
+
+    function applyFiltersAndRender() {
+      const products = Array.isArray(window.__allProducts) ? window.__allProducts : [];
+      const minPrice = $("minPrice").value;
+      const maxPrice = $("maxPrice").value;
+      const colors = toArray($("colors").value).map(s => s.toLowerCase());
+      const sizes = toArray($("sizes").value).map(s => s.toLowerCase());
+      const brands = toArray($("brands").value).map(s => s.toLowerCase());
+      const sortBy = $("sortBy").value;
+      const sortOrder = $("sortOrder").value || 'asc';
+
+      const minP = minPrice ? Number(minPrice) : null;
+      const maxP = maxPrice ? Number(maxPrice) : null;
+
+      let out = products.map(p => ({
+        ...p,
+        _titleLower: (p.title || '').toLowerCase(),
+        _sourceLower: (p.source || '').toLowerCase(),
+        _linkLower: (p.link || '').toLowerCase(),
+        priceNumber: parsePriceToNumber(p.price)
+      }));
+
+      out = out.filter(p => {
+        if (minP != null && p.priceNumber != null && p.priceNumber < minP) return false;
+        if (maxP != null && p.priceNumber != null && p.priceNumber > maxP) return false;
+        if (colors.length && !colors.some(c => p._titleLower.includes(c))) return false;
+        if (sizes.length && !sizes.some(s => p._titleLower.includes(s))) return false;
+        if (brands.length) {
+          const hay = p._titleLower + ' ' + p._sourceLower + ' ' + p._linkLower;
+          if (!brands.some(b => hay.includes(b))) return false;
+        }
+        return true;
+      });
+
+      if (sortBy === 'price') {
+        const dir = (sortOrder === 'desc') ? -1 : 1;
+        out.sort((a, b) => {
+          const pa = a.priceNumber, pb = b.priceNumber;
+          if (pa == null && pb == null) return 0;
+          if (pa == null) return 1;
+          if (pb == null) return -1;
+          return (pa - pb) * dir;
+        });
+      }
+
+      const grid = $("grid");
+      grid.innerHTML = '';
+      for (const p of out.map(({ _titleLower, _sourceLower, _linkLower, priceNumber, ...rest }) => rest)) {
+        const el = document.createElement('div');
+        el.className = 'item';
+        const saved = isSaved(p);
+        el.innerHTML = `
+          <img class="thumb" src="${p.thumbnail || ''}" alt="thumb" />
+          <div class="title">${p.title || ''}</div>
+          <div class="price">${p.price || ''}</div>
+          <div class="meta">${p.source || ''}</div>
+          ${p.link ? `<a href="${p.link}" target="_blank" rel="noopener">View</a>` : ''}
+          <button class="${saved ? '' : 'secondary'}">${saved ? 'Saved ♥' : 'Save ♥'}</button>
+        `;
+        el.querySelector('button').addEventListener('click', () => { toggleSave(p); applyFiltersAndRender(); });
+        grid.appendChild(el);
+      }
+    }
+
+    const saved = sessionStorage.getItem('lastSearch');
+    if (saved) {
+      try {
+        render(JSON.parse(saved));
+      } catch (e) {
+        $("details").textContent = 'Could not load previous result.';
+      }
+    } else {
+      $("details").textContent = 'No previous result found. Go back and run a search.';
+    }
+
+    $("applyFilters").addEventListener('click', applyFiltersAndRender);
+    $("resetFilters").addEventListener('click', () => {
+      $("minPrice").value = '';
+      $("maxPrice").value = '';
+      $("colors").value = '';
+      $("sizes").value = '';
+      $("brands").value = '';
+      $("sortBy").value = '';
+      $("sortOrder").value = 'asc';
+      applyFiltersAndRender();
+    });
+
+    // Logout
+    document.getElementById('logoutBtn').addEventListener('click', async () => {
+      try { await fetch('/auth/logout', { method: 'POST' }); } catch {}
+      try { localStorage.removeItem('token'); } catch {}
+      location.replace('/login.html');
+    });
+  </script>
+  <script src="/chatbot.js"></script>
+</body>
+</html>

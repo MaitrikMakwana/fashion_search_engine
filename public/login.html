@@ -1,0 +1,100 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Sign in</title>
+  <style>
+    body { font-family: system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif; margin: 0; padding: 24px; background: #fafafa; color: #222; }
+    .container { max-width: 420px; margin: 10vh auto; background: #fff; border: 1px solid #eee; border-radius: 12px; padding: 20px; box-shadow: 0 2px 8px rgba(0,0,0,0.05); }
+    h1 { margin: 0 0 12px; font-size: 22px; }
+    label { display:block; font-weight:600; margin: 10px 0 6px; }
+    input { width: 100%; padding: 10px 12px; border: 1px solid #ccc; border-radius: 8px; font-size: 16px; }
+    button { background: #111; color: #fff; border: 0; border-radius: 8px; padding: 10px 14px; cursor: pointer; }
+    button.secondary { background:#666; }
+    .row { display:flex; gap:10px; }
+    .note { color:#666; font-size:12px; }
+    .sep { text-align:center; margin: 14px 0; color: #888; font-size: 12px; }
+    .status { margin-top:8px; color:#0a7; font-size: 13px; }
+    .error { color:#b00; }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h1>Welcome</h1>
+    <div class="note">Sign up or log in to continue.</div>
+
+    <label>Email</label>
+    <input id="email" type="email" placeholder="jane@example.com" />
+    <label>Password</label>
+    <input id="password" type="password" placeholder="••••••••" />
+    <div class="row" style="margin-top:10px;">
+      <button id="btn_login">Login</button>
+      <button id="btn_signup" class="secondary">Sign Up</button>
+    </div>
+
+    <div class="sep">— or —</div>
+
+    <div id="g_id_signin_container" style="display:flex; justify-content:center;"></div>
+
+    <div id="status" class="status"></div>
+  </div>
+
+  <script>
+    const $ = (id) => document.getElementById(id);
+    function setStatus(msg, err=false){ const el=$('status'); el.textContent=msg||''; el.className='status'+(err?' error':''); }
+    function saveToken(t){ localStorage.setItem('token', t||''); }
+
+    async function api(path, opts={}){
+      const res = await fetch(path, { headers: { 'Content-Type':'application/json' }, ...opts });
+      const data = await res.json().catch(()=>({}));
+      if (!res.ok) throw new Error(data.error || ('HTTP '+res.status));
+      return data;
+    }
+
+    $('btn_login').onclick = async () => {
+      try {
+        setStatus('Logging in...');
+        const out = await api('/auth/login', { method:'POST', body: JSON.stringify({ email: $('email').value.trim(), password: $('password').value }) });
+        saveToken(out.token); location.href = '/';
+      } catch (e) { setStatus(e.message, true); }
+    };
+
+    $('btn_signup').onclick = async () => {
+      try {
+        setStatus('Signing up...');
+        const out = await api('/auth/signup', { method:'POST', body: JSON.stringify({ email: $('email').value.trim(), password: $('password').value }) });
+        saveToken(out.token); location.href = '/';
+      } catch (e) { setStatus(e.message, true); }
+    };
+
+    async function initGoogle(){
+      try {
+        const cfg = await fetch('/config').then(r=>r.json()).catch(()=>({}));
+        if(!cfg.googleClientId) return;
+        await new Promise((resolve, reject) => {
+          const s = document.createElement('script'); s.src='https://accounts.google.com/gsi/client'; s.async=true; s.defer=true; s.onload=resolve; s.onerror=()=>reject(new Error('Failed to load Google script')); document.head.appendChild(s);
+        });
+        if (!window.google || !google.accounts || !google.accounts.id) return;
+        google.accounts.id.initialize({
+          client_id: cfg.googleClientId,
+          callback: async (response) => {
+            try {
+              setStatus('Signing in with Google...');
+              const out = await api('/auth/google', { method:'POST', body: JSON.stringify({ credential: response.credential }) });
+              saveToken(out.token); location.href = '/';
+            } catch (e) { setStatus(e.message, true); }
+          }
+        });
+        const c = document.getElementById('g_id_signin_container');
+        if (c) google.accounts.id.renderButton(c, { theme: 'outline', size: 'large', text: 'continue_with' });
+        // Optionally: google.accounts.id.prompt();
+      } catch (e) { console.warn('Google init error:', e.message || e); }
+    }
+    window.addEventListener('load', initGoogle);
+
+    // If token exists, go directly to main page
+    if (localStorage.getItem('token')) location.href = '/';
+  </script>
+</body>
+</html>

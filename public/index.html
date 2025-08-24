@@ -1,0 +1,453 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Fashion Search</title>
+  <style>
+    body { font-family: system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif; margin: 0; padding: 24px; background: #fafafa; color: #222; }
+    .container { max-width: 1000px; margin: 0 auto; }
+    h1 { margin-bottom: 8px; }
+    .card { background: #fff; border: 1px solid #eee; border-radius: 12px; padding: 16px; box-shadow: 0 2px 8px rgba(0,0,0,0.04); }
+    .row { display: flex; gap: 16px; flex-wrap: wrap; }
+    .col { flex: 1 1 300px; }
+    label { display: block; font-weight: 600; margin: 12px 0 6px; }
+    input[type=text] { width: 100%; padding: 10px 12px; border: 1px solid #ccc; border-radius: 8px; font-size: 16px; }
+    input[type=file] { display: block; }
+    .actions { margin-top: 12px; display: flex; gap: 12px; align-items: center; }
+    button { background: #222; color: #fff; padding: 10px 14px; border: 0; border-radius: 8px; cursor: pointer; }
+    button.secondary { background: #666; }
+    .result { margin-top: 20px; }
+    .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)); gap: 12px; }
+    .item { background: #fff; border: 1px solid #eee; border-radius: 10px; padding: 10px; display: flex; flex-direction: column; gap: 8px; }
+    .thumb { width: 100%; aspect-ratio: 1 / 1; object-fit: cover; border-radius: 8px; background: #f0f0f0; }
+    .title { font-size: 14px; line-height: 1.3; }
+    .price { font-weight: 700; }
+    .meta { color: #666; font-size: 12px; }
+    .query { color: #444; font-size: 14px; margin-top: 6px; }
+    .note { font-size: 12px; color: #666; }
+    .error { color: #b00020; margin-top: 10px; }
+  </style>
+  <script>
+    try { if (!localStorage.getItem('token')) location.replace('/login.html'); } catch {}
+  </script>
+</head>
+<body>
+  <div class="container">
+    <div style="display:flex; align-items:center; gap:12px;">
+      <h1 style="flex:1;">Fashion Search</h1>
+      <button id="logoutBtn" class="secondary">Logout</button>
+    </div>
+
+    <div class="card">
+      <div class="row">
+        <div class="col">
+          <label for="text">Text search</label>
+          <input id="text" type="text" placeholder="e.g., black shirt half sleeve" />
+          <div class="note">Spell correction via Gemini is enabled on the server.</div>
+          <label for="platform">Platform</label>
+          <select id="platform">
+            <option value="myntra">Myntra</option>
+            <option value="amazon">Amazon</option>
+            <option value="flipkart">Flipkart</option>
+            <option value="google_shopping">Google Shopping (default)</option>
+          </select>
+        </div>
+        <div class="col">
+          <label for="image">Upload image</label>
+          <input id="image" type="file" accept="image/*" />
+          <div class="note">Or provide an image URL below</div>
+          <input id="imageUrl" type="text" placeholder="https://example.com/image.jpg" />
+        </div>
+      </div>
+      <div class="actions">
+        <button id="searchBtn">Search</button>
+        <button id="clearBtn" class="secondary">Clear</button>
+        <span id="status" class="note"></span>
+      </div>
+      <div id="error" class="error"></div>
+    </div>
+
+    <div class="card" style="margin-top: 14px;">
+      <strong>Filters (client-side, applied after results):</strong>
+      <div class="row">
+        <div class="col">
+          <label for="minPrice">Min Price</label>
+          <input id="minPrice" type="text" placeholder="e.g., 300" />
+        </div>
+        <div class="col">
+          <label for="maxPrice">Max Price</label>
+          <input id="maxPrice" type="text" placeholder="e.g., 1500" />
+        </div>
+        <div class="col">
+          <label for="colors">Colors</label>
+          <input id="colors" type="text" placeholder="black, red | csv or |" />
+        </div>
+        <div class="col">
+          <label for="sizes">Sizes</label>
+          <input id="sizes" type="text" placeholder="M, L | csv or |" />
+        </div>
+        <div class="col">
+          <label for="brands">Brands</label>
+          <input id="brands" type="text" placeholder="nike, adidas | csv or |" />
+        </div>
+        <div class="col">
+          <label for="sortBy">Sort By</label>
+          <select id="sortBy">
+            <option value="">None</option>
+            <option value="price">Price</option>
+          </select>
+        </div>
+        <div class="col">
+          <label for="sortOrder">Order</label>
+          <select id="sortOrder">
+            <option value="asc">Asc</option>
+            <option value="desc">Desc</option>
+          </select>
+        </div>
+      </div>
+      <div class="actions">
+        <button id="applyFilters">Apply Filters</button>
+        <button id="resetFilters" class="secondary">Reset Filters</button>
+      </div>
+    </div>
+
+    <div class="card" style="margin-top:14px;">
+      <div style="display:flex; align-items:center; gap:8px;">
+        <span style="font-size:18px;">🔥 <strong>Trending Styles</strong></span>
+        <a href="/ootd.html" class="note" style="margin-left:auto;">Outfit of the Day →</a>
+        <select id="trendingPlatform">
+          <option value="all">All</option>
+          <option value="myntra">Myntra</option>
+          <option value="ajio">Ajio</option>
+          <option value="amazon">Amazon</option>
+        </select>
+        <button id="reloadTrending" class="secondary">Reload</button>
+      </div>
+      <div id="trendingGrid" class="grid" style="margin-top:10px;"></div>
+      <div class="note">Tip: click "Save ♥" on any trending item to add it to your wishlist.</div>
+    </div>
+
+    <div class="card" style="margin-top:14px;">
+      <div style="display:flex; align-items:center; gap:8px;">
+        <span style="font-size:18px;">❤️ <strong>Your Wishlist</strong></span>
+        <button id="loadWishlist" class="secondary" style="margin-left:auto;">Reload</button>
+        <button id="clearWishlist" class="secondary">Clear</button>
+      </div>
+      <div id="wishlistGrid" class="grid" style="margin-top:10px;"></div>
+    </div>
+
+    <div class="result">
+      <div id="query" class="query"></div>
+      <div id="grid" class="grid"></div>
+    </div>
+  </div>
+
+  <script>
+    // Client-side guard: if not logged in, go to login page first
+    try { if (!localStorage.getItem('token')) location.href = '/login.html'; } catch {}
+
+    const apiBase = '';
+
+    function $(id) { return document.getElementById(id); }
+    function setStatus(msg) { $("status").textContent = msg || ''; }
+    function setError(msg) { $("error").textContent = msg || ''; }
+    function setQuery(q) { $("query").textContent = q ? `Search query: ${q}` : ''; }
+
+    // API helper with auth
+    function getToken(){ try { return localStorage.getItem('token') || ''; } catch { return ''; } }
+    async function api(path, opts={}){
+      const headers = Object.assign({ }, opts.headers || {});
+      const token = getToken();
+      if (opts.body && !(opts.body instanceof FormData)) headers['Content-Type'] = 'application/json';
+      if (token) headers['Authorization'] = 'Bearer ' + token;
+      const res = await fetch(path, { ...opts, headers });
+      const ct = res.headers.get('content-type') || '';
+      const data = ct.includes('application/json') ? await res.json().catch(()=>({})) : await res.text();
+      if (!res.ok) throw new Error((data && data.error) || data || ('HTTP '+res.status));
+      return data;
+    }
+
+    // ---- Trending ----
+    async function loadTrending() {
+      const tp = $("trendingPlatform").value || 'all';
+      const grid = $("trendingGrid");
+      grid.innerHTML = '<div class="note">Loading trending...</div>';
+      try {
+        const resp = await fetch(`${apiBase}/trending?platform=${encodeURIComponent(tp)}&limit=12`);
+        if (!resp.ok) throw new Error(await resp.text() || 'Failed to load trending');
+        const data = await resp.json();
+        const items = data.items || [];
+        grid.innerHTML = '';
+        for (const p of items) {
+          const el = document.createElement('div');
+          el.className = 'item';
+          const key = makeKey(p);
+          const saved = wishlistIndex.has(key);
+          el.innerHTML = `
+            <img class="thumb" src="${p.thumbnail || ''}" alt="thumb" />
+            <div class="title">${p.title || ''}</div>
+            <div class="meta">${p.source || ''}</div>
+            ${p.link ? `<a href="${p.link}" target="_blank" rel="noopener">View</a>` : ''}
+            <button class="${saved ? '' : 'secondary'}">${saved ? 'Saved ♥' : 'Save ♥'}</button>
+          `;
+          el.querySelector('button').addEventListener('click', async () => { await toggleSaveServer(p); loadTrending(); });
+          grid.appendChild(el);
+        }
+        if (!items.length) grid.innerHTML = '<div class="note">No trending items found. Try reloading.</div>';
+      } catch (e) {
+        grid.innerHTML = `<div class="note">${(e && e.message) || 'Error loading trending'}</div>`;
+      }
+    }
+
+    window.addEventListener('load', loadTrending);
+    $("reloadTrending").addEventListener('click', loadTrending);
+    $("trendingPlatform").addEventListener('change', loadTrending);
+
+    let lastProducts = [];
+
+    // ---- Wishlist (server DB) ----
+    const wishlistIndex = new Map(); // key -> { id, item }
+    function makeKey(p) { return ((p.link || p.title || '').toLowerCase()); }
+
+    async function loadWishlist() {
+      const grid = $('wishlistGrid');
+      grid.innerHTML = '<div class="note">Loading...</div>';
+      wishlistIndex.clear();
+      try {
+        const out = await api('/wishlist');
+        const items = out.items || [];
+        grid.innerHTML = '';
+        for (const it of items) {
+          const key = makeKey(it);
+          wishlistIndex.set(key, { id: it._id, item: it });
+          const el = document.createElement('div');
+          el.className = 'item';
+          el.innerHTML = `
+            <img class="thumb" src="${it.image || ''}" alt="thumb" />
+            <div class="title">${it.title || ''}</div>
+            <div class="price">${it.price || ''}</div>
+            <div class="meta">${it.source || ''}</div>
+            ${it.link ? `<a href="${it.link}" target="_blank" rel="noopener">View</a>` : ''}
+            <button class="secondary">Remove</button>
+          `;
+          el.querySelector('button').addEventListener('click', async () => {
+            try { await api(`/wishlist/${it._id}`, { method: 'DELETE' }); await loadWishlist(); renderProducts(lastProducts); } catch(e){ alert(e.message); }
+          });
+          grid.appendChild(el);
+        }
+        if (!items.length) grid.innerHTML = '<div class="note">No items saved yet.</div>';
+      } catch (e) {
+        grid.innerHTML = `<div class="note">${e.message || 'Error loading wishlist'}</div>`;
+      }
+    }
+
+    async function toggleSaveServer(p) {
+      const key = makeKey(p);
+      const entry = wishlistIndex.get(key);
+      if (entry) {
+        // delete
+        await api(`/wishlist/${entry.id}`, { method: 'DELETE' });
+      } else {
+        // add
+        const body = { title: p.title || '', price: p.price || '', link: p.link || '', image: p.thumbnail || p.image || '', source: p.source || '' };
+        await api('/wishlist', { method: 'POST', body: JSON.stringify(body) });
+      }
+      await loadWishlist();
+    }
+
+    $("loadWishlist").addEventListener('click', loadWishlist);
+    $("clearWishlist").addEventListener('click', async () => {
+      try {
+        const ids = Array.from(wishlistIndex.values()).map(v => v.id);
+        for (const id of ids) { await api(`/wishlist/${id}`, { method: 'DELETE' }); }
+        await loadWishlist();
+        renderProducts(lastProducts);
+      } catch (e) { alert(e.message); }
+    });
+
+    function renderProducts(products) {
+      const grid = $("grid");
+      grid.innerHTML = '';
+      if (!products || !products.length) return;
+      for (const p of products) {
+        const el = document.createElement('div');
+        el.className = 'item';
+        const key = makeKey(p);
+        const saved = wishlistIndex.has(key);
+        el.innerHTML = `
+          <img class="thumb" src="${p.thumbnail || ''}" alt="thumb" />
+          <div class="title">${p.title || ''}</div>
+          <div class="price">${p.price || ''}</div>
+          <div class="meta">${p.source || ''}</div>
+          ${p.link ? `<a href="${p.link}" target="_blank" rel="noopener">View</a>` : ''}
+          <button class="${saved ? '' : 'secondary'}">${saved ? 'Saved ♥' : 'Save ♥'}</button>
+        `;
+        el.querySelector('button').addEventListener('click', async () => { await toggleSaveServer(p); renderProducts(products); });
+        grid.appendChild(el);
+      }
+    }
+
+    function parsePriceToNumber(price) {
+      if (price == null) return null;
+      if (typeof price === 'number') return price;
+      const s = String(price).replace(/[\,\s]/g, '').replace(/[₹$€£]/g, '');
+      const m = s.match(/(\d+\.?\d*)/);
+      if (!m) return null;
+      const n = parseFloat(m[1]);
+      return Number.isFinite(n) ? n : null;
+    }
+
+    function toArray(val) {
+      if (!val) return [];
+      return String(val)
+        .split(/[,|]/)
+        .map(s => s.trim())
+        .filter(Boolean);
+    }
+
+    function applyClientFilters(products) {
+      const minPrice = $("minPrice").value;
+      const maxPrice = $("maxPrice").value;
+      const colors = toArray($("colors").value).map(s => s.toLowerCase());
+      const sizes = toArray($("sizes").value).map(s => s.toLowerCase());
+      const brands = toArray($("brands").value).map(s => s.toLowerCase());
+      const sortBy = $("sortBy").value;
+      const sortOrder = $("sortOrder").value || 'asc';
+
+      const minP = minPrice ? Number(minPrice) : null;
+      const maxP = maxPrice ? Number(maxPrice) : null;
+
+      let out = products.map(p => ({
+        ...p,
+        _titleLower: (p.title || '').toLowerCase(),
+        _sourceLower: (p.source || '').toLowerCase(),
+        _linkLower: (p.link || '').toLowerCase(),
+        priceNumber: parsePriceToNumber(p.price)
+      }));
+
+      out = out.filter(p => {
+        if (minP != null && p.priceNumber != null && p.priceNumber < minP) return false;
+        if (maxP != null && p.priceNumber != null && p.priceNumber > maxP) return false;
+        if (colors.length && !colors.some(c => p._titleLower.includes(c))) return false;
+        if (sizes.length && !sizes.some(s => p._titleLower.includes(s))) return false;
+        if (brands.length) {
+          const hay = p._titleLower + ' ' + p._sourceLower + ' ' + p._linkLower;
+          if (!brands.some(b => hay.includes(b))) return false;
+        }
+        return true;
+      });
+
+      if (sortBy === 'price') {
+        const dir = (sortOrder === 'desc') ? -1 : 1;
+        out.sort((a, b) => {
+          const pa = a.priceNumber, pb = b.priceNumber;
+          if (pa == null && pb == null) return 0;
+          if (pa == null) return 1;
+          if (pb == null) return -1;
+          return (pa - pb) * dir;
+        });
+      }
+
+      // strip internal
+      return out.map(({ _titleLower, _sourceLower, _linkLower, priceNumber, ...rest }) => rest);
+    }
+
+    function applyFiltersAndRender() {
+      const filtered = applyClientFilters(lastProducts);
+      renderProducts(filtered);
+    }
+
+    async function doSearch() {
+      setError('');
+      setStatus('Searching...');
+      setQuery('');
+      renderProducts([]);
+
+      const text = $("text").value.trim();
+      const file = $("image").files[0] || null;
+      const imageUrl = $("imageUrl").value.trim();
+
+      try {
+        let resp;
+        if (file || imageUrl) {
+          const form = new FormData();
+          if (file) form.append('image', file);
+          if (imageUrl) form.append('imageUrl', imageUrl);
+          if (text) form.append('text', text);
+          form.append('platform', $("platform").value);
+          resp = await fetch(`${apiBase}/search`, { method: 'POST', body: form });
+        } else {
+          resp = await fetch(`${apiBase}/search`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ text, platform: $("platform").value })
+          });
+        }
+
+        if (!resp.ok) {
+          const t = await resp.text();
+          throw new Error(t || 'Request failed');
+        }
+        const data = await resp.json();
+        sessionStorage.setItem('lastSearch', JSON.stringify(data));
+        setQuery(data.query);
+        lastProducts = Array.isArray(data.products) ? data.products : [];
+        await loadWishlist(); // ensure wishlistIndex reflects server before rendering
+        applyFiltersAndRender();
+        const detailsLink = document.createElement('a');
+        detailsLink.href = `/result.html`;
+        detailsLink.textContent = 'Open details page';
+        detailsLink.style.marginLeft = '8px';
+        detailsLink.target = '_self';
+        const status = document.getElementById('status');
+        if (status) {
+          status.innerHTML = '';
+          status.appendChild(detailsLink);
+        }
+      } catch (err) {
+        setError(err.message || String(err));
+      } finally {
+        setStatus('');
+      }
+    }
+
+    $("searchBtn").addEventListener('click', doSearch);
+    $("applyFilters").addEventListener('click', applyFiltersAndRender);
+    $("resetFilters").addEventListener('click', () => {
+      $("minPrice").value = '';
+      $("maxPrice").value = '';
+      $("colors").value = '';
+      $("sizes").value = '';
+      $("brands").value = '';
+      $("sortBy").value = '';
+      $("sortOrder").value = 'asc';
+      applyFiltersAndRender();
+    });
+    $("clearBtn").addEventListener('click', () => {
+      $("text").value = '';
+      $("image").value = '';
+      $("imageUrl").value = '';
+      setError('');
+      setQuery('');
+      lastProducts = [];
+      $("grid").innerHTML = '';
+      sessionStorage.removeItem('lastSearch');
+      document.getElementById('status').textContent = '';
+    });
+
+    // Initial loads
+    window.addEventListener('load', async () => { await loadWishlist(); });
+
+    // Logout
+    document.getElementById('logoutBtn').addEventListener('click', async () => {
+      try {
+        await fetch('/auth/logout', { method: 'POST' });
+      } catch {}
+      try { localStorage.removeItem('token'); } catch {}
+      location.replace('/login.html');
+    });
+  </script>
+  <script src="/chatbot.js"></script>
+</body>
+</html>

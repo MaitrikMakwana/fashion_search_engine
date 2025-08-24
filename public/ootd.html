@@ -1,0 +1,316 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Outfit of the Day (OOTD)</title>
+  <style>
+    body { font-family: system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif; margin: 0; padding: 24px; background: #fafafa; color: #222; }
+    .container { max-width: 900px; margin: 0 auto; }
+    h1 { margin-bottom: 8px; }
+    .card { background: #fff; border: 1px solid #eee; border-radius: 12px; padding: 16px; box-shadow: 0 2px 8px rgba(0,0,0,0.04); }
+    .row { display: flex; gap: 16px; flex-wrap: wrap; }
+    .col { flex: 1 1 300px; }
+    label { display: block; font-weight: 600; margin: 12px 0 6px; }
+    input[type=text] { width: 100%; padding: 10px 12px; border: 1px solid #ccc; border-radius: 8px; font-size: 16px; }
+    input[type=file] { display: block; }
+    .actions { margin-top: 12px; display: flex; gap: 12px; align-items: center; }
+    button { background: #222; color: #fff; padding: 10px 14px; border: 0; border-radius: 8px; cursor: pointer; }
+    button.secondary { background: #666; }
+    .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)); gap: 12px; margin-top: 12px; }
+    .item { background: #fff; border: 1px solid #eee; border-radius: 10px; padding: 10px; display: flex; flex-direction: column; gap: 8px; }
+    .thumb { width: 100%; aspect-ratio: 1 / 1; object-fit: cover; border-radius: 8px; background: #f0f0f0; }
+    .title { font-size: 14px; line-height: 1.3; }
+    .price { font-weight: 700; }
+    .meta { color: #666; font-size: 12px; }
+    .note { font-size: 12px; color: #666; }
+    .back { display: inline-block; margin-bottom: 12px; }
+  </style>
+  <script>
+    try { if (!localStorage.getItem('token')) location.replace('/login.html'); } catch {}
+  </script>
+</head>
+<body>
+  <div class="container">
+    <a href="/" class="back">← Back to search</a>
+    <div style="display:flex; align-items:center; gap:12px;">
+      <h1 style="flex:1;">Outfit of the Day (OOTD)</h1>
+      <button id="logoutBtn" class="secondary">Logout</button>
+    </div>
+    <div class="card">
+      <div class="row">
+        <div class="col">
+          <label for="ootdImage">Upload your outfit</label>
+          <input id="ootdImage" type="file" accept="image/*" />
+          <label for="ootdCaption">Caption</label>
+          <input id="ootdCaption" type="text" placeholder="e.g., Streetwear fit with denim jacket" />
+          <label for="ootdPlatform">Find similar on</label>
+          <select id="ootdPlatform">
+            <option value="google_shopping">Google Shopping (default)</option>
+            <option value="myntra">Myntra</option>
+            <option value="amazon">Amazon</option>
+            <option value="flipkart">Flipkart</option>
+          </select>
+        </div>
+      </div>
+      <div class="actions">
+        <button id="postAndFind">Post OOTD + Find Similar</button>
+        <span id="status" class="note"></span>
+      </div>
+      <div id="error" class="note" style="color:#b00020;"></div>
+    </div>
+
+    <div class="card" style="margin-top:14px;">
+      <div style="display:flex; align-items:center; gap:8px;">
+        <span style="font-size:18px;">🧾 <strong>Your OOTD Feed</strong></span>
+        <button id="clearFeed" class="secondary" style="margin-left:auto;">Clear Feed</button>
+      </div>
+      <div id="feedGrid" class="grid"></div>
+    </div>
+
+    <div class="card" style="margin-top:14px;">
+      <div style="display:flex; align-items:center; gap:8px;">
+        <span style="font-size:18px;">🛍️ <strong>Shop Similar</strong></span>
+      </div>
+      <div id="resultsGrid" class="grid"></div>
+    </div>
+
+    <div class="card" style="margin-top:14px;">
+      <div style="display:flex; align-items:center; gap:8px;">
+        <span style="font-size:18px;">❤️ <strong>Wishlist</strong></span>
+        <button id="clearWishlist" class="secondary" style="margin-left:auto;">Clear</button>
+      </div>
+      <div id="wishlistGrid" class="grid"></div>
+    </div>
+  </div>
+
+  <script>
+    // Client-side guard: if not logged in, go to login page first
+    try { if (!localStorage.getItem('token')) location.href = '/login.html'; } catch {}
+    const apiBase = '';
+    function $(id) { return document.getElementById(id); }
+    function setStatus(msg) { $("status").textContent = msg || ''; }
+    function setError(msg) { $("error").textContent = msg || ''; }
+
+    // API helper with auth
+    function getToken(){ try { return localStorage.getItem('token') || ''; } catch { return ''; } }
+    async function api(path, opts={}){
+      const headers = Object.assign({}, opts.headers || {});
+      if (opts.body && !(opts.body instanceof FormData)) headers['Content-Type'] = 'application/json';
+      const t = getToken(); if (t) headers['Authorization'] = 'Bearer ' + t;
+      const res = await fetch(path, { ...opts, headers });
+      const ct = res.headers.get('content-type') || '';
+      const data = ct.includes('application/json') ? await res.json().catch(()=>({})) : await res.text();
+      if (!res.ok) throw new Error((data && data.error) || data || ('HTTP '+res.status));
+      return data;
+    }
+
+    // ---- Wishlist (server DB) ----
+    const wishlistIndex = new Map(); // key -> { id, item }
+    function makeKey(p) { return (p.link || p.title || '').toLowerCase(); }
+
+    async function loadWishlist() {
+      const grid = $("wishlistGrid");
+      grid.innerHTML = '<div class="note">Loading...</div>';
+      wishlistIndex.clear();
+      try {
+        const token = localStorage.getItem('token') || '';
+        const res = await fetch('/wishlist', { headers: token ? { 'Authorization': 'Bearer ' + token } : {} });
+        const out = await res.json();
+        if (!res.ok) throw new Error(out.error || 'Failed to load');
+        const items = out.items || [];
+        grid.innerHTML = '';
+        for (const it of items) {
+          const key = makeKey(it);
+          wishlistIndex.set(key, { id: it._id, item: it });
+          const el = document.createElement('div');
+          el.className = 'item';
+          el.innerHTML = `
+            <img class="thumb" src="${it.image || ''}" alt="thumb" />
+            <div class="title">${it.title || ''}</div>
+            <div class="price">${it.price || ''}</div>
+            <div class="meta">${it.source || ''}</div>
+            ${it.link ? `<a href="${it.link}" target="_blank" rel="noopener">View</a>` : ''}
+            <button class="secondary">Remove</button>
+          `;
+          el.querySelector('button').addEventListener('click', async () => {
+            const token2 = localStorage.getItem('token') || '';
+            await fetch('/wishlist/' + it._id, { method: 'DELETE', headers: token2 ? { 'Authorization': 'Bearer ' + token2 } : {} });
+            await loadWishlist();
+            renderResults(lastResults);
+          });
+          grid.appendChild(el);
+        }
+        if (!items.length) grid.innerHTML = '<div class="note">No items saved yet.</div>';
+      } catch (e) { grid.innerHTML = `<div class="note">${e.message}</div>`; }
+    }
+
+    async function toggleSaveServer(p) {
+      const key = makeKey(p);
+      const entry = wishlistIndex.get(key);
+      const token = localStorage.getItem('token') || '';
+      if (entry) {
+        await fetch('/wishlist/' + entry.id, { method: 'DELETE', headers: token ? { 'Authorization': 'Bearer ' + token } : {} });
+      } else {
+        const body = { title: p.title || '', price: p.price || '', link: p.link || '', image: p.thumbnail || p.image || '', source: p.source || '' };
+        await fetch('/wishlist', { method: 'POST', headers: Object.assign({ 'Content-Type': 'application/json' }, token ? { 'Authorization': 'Bearer ' + token } : {}), body: JSON.stringify(body) });
+      }
+      await loadWishlist();
+    }
+
+    $("clearWishlist").addEventListener('click', async () => {
+      try {
+        const ids = Array.from(wishlistIndex.values()).map(v => v.id);
+        const token = localStorage.getItem('token') || '';
+        for (const id of ids) {
+          await fetch('/wishlist/' + id, { method: 'DELETE', headers: token ? { 'Authorization': 'Bearer ' + token } : {} });
+        }
+        await loadWishlist();
+        renderResults(lastResults);
+      } catch (e) { alert(e.message); }
+    });
+
+    // ---- OOTD Feed (localStorage) ----
+    const FEED_KEY = 'ootd_posts:v1';
+    function getFeed() { try { return JSON.parse(localStorage.getItem(FEED_KEY) || '[]'); } catch { return []; } }
+    function setFeed(list) { localStorage.setItem(FEED_KEY, JSON.stringify(list)); }
+    function dataUrlToBlob(dataUrl) {
+      const [hdr, b64] = dataUrl.split(',');
+      const mime = (hdr.match(/data:(.*?);base64/) || [null, 'image/jpeg'])[1];
+      const bin = atob(b64);
+      const len = bin.length;
+      const bytes = new Uint8Array(len);
+      for (let i = 0; i < len; i++) bytes[i] = bin.charCodeAt(i);
+      return new Blob([bytes], { type: mime });
+    }
+
+    async function renderFeed() {
+      const grid = $("feedGrid");
+      grid.innerHTML = '<div class="note">Loading your OOTD...</div>';
+      try {
+        const out = await api('/ootd');
+        const feed = out.items || [];
+        grid.innerHTML = '';
+        for (const post of feed) {
+          const el = document.createElement('div');
+          el.className = 'item';
+          el.innerHTML = `
+            <img class="thumb" src="${post.imageUrl || ''}" alt="ootd" />
+            <div class="title">${post.caption || ''}</div>
+            <div class="meta">${new Date(post.createdAt || Date.now()).toLocaleString()}</div>
+            <div style="display:flex; gap:8px;">
+              <button class="shop">Shop Similar</button>
+              <button class="secondary del">Delete</button>
+            </div>
+          `;
+          el.querySelector('.shop').addEventListener('click', async () => {
+            // If imageUrl is a data URL, turn to blob; otherwise fetch it
+            let blob;
+            if ((post.imageUrl || '').startsWith('data:')) {
+              blob = dataUrlToBlob(post.imageUrl);
+            } else if (post.imageUrl) {
+              const r = await fetch(post.imageUrl); const b = await r.blob(); blob = b;
+            }
+            await doShopSimilar(blob, post.caption || 'shop similar outfit', 'google_shopping');
+          });
+          el.querySelector('.del').addEventListener('click', async () => {
+            try { await api('/ootd/' + post._id, { method: 'DELETE' }); await renderFeed(); }
+            catch (e) { alert(e.message); }
+          });
+          grid.appendChild(el);
+        }
+        if (!feed.length) grid.innerHTML = '<div class="note">No OOTD posts yet. Upload your look above.</div>';
+      } catch (e) {
+        grid.innerHTML = `<div class="note">${e.message || 'Failed to load OOTD'}</div>`;
+      }
+    }
+
+    // ---- Results ----
+    let lastResults = [];
+    function renderResults(products) {
+      const grid = $("resultsGrid");
+      grid.innerHTML = '';
+      if (!Array.isArray(products) || !products.length) return;
+      for (const p of products) {
+        const el = document.createElement('div');
+        el.className = 'item';
+        const key = makeKey(p);
+        const saved = wishlistIndex.has(key);
+        el.innerHTML = `
+          <img class="thumb" src="${p.thumbnail || ''}" alt="thumb" />
+          <div class="title">${p.title || ''}</div>
+          <div class="price">${p.price || ''}</div>
+          <div class="meta">${p.source || ''}</div>
+          ${p.link ? `<a href="${p.link}" target="_blank" rel="noopener">View</a>` : ''}
+          <button class="${saved ? '' : 'secondary'}">${saved ? 'Saved ♥' : 'Save ♥'}</button>
+        `;
+        el.querySelector('button').addEventListener('click', async () => { await toggleSaveServer(p); renderResults(products); });
+        grid.appendChild(el);
+      }
+    }
+
+    async function doShopSimilar(imageBlob, caption, platform) {
+      setError('');
+      setStatus('Finding similar...');
+      try {
+        const file = new File([imageBlob], 'ootd.jpg', { type: imageBlob.type || 'image/jpeg' });
+        const form = new FormData();
+        form.append('image', file);
+        if (caption) form.append('text', caption);
+        form.append('platform', platform || 'google_shopping');
+        const resp = await fetch(`${apiBase}/search`, { method: 'POST', body: form });
+        if (!resp.ok) throw new Error(await resp.text() || 'Search failed');
+        const data = await resp.json();
+        lastResults = Array.isArray(data.products) ? data.products : [];
+        renderResults(lastResults);
+      } catch (e) {
+        setError((e && e.message) || 'Error searching');
+      } finally {
+        setStatus('');
+      }
+    }
+
+    // ---- Post handler (save to DB and shop similar) ----
+    $("postAndFind").addEventListener('click', async () => {
+      setError('');
+      const input = $("ootdImage");
+      const file = input.files && input.files[0];
+      if (!file) { setError('Please select an image.'); return; }
+
+      const caption = $("ootdCaption").value.trim();
+      const platform = $("ootdPlatform").value || 'google_shopping';
+
+      // Convert to data URL to persist as imageUrl for demo storage
+      const reader = new FileReader();
+      reader.onload = async () => {
+        try {
+          const dataUrl = reader.result;
+          // Save OOTD to DB
+          await api('/ootd', { method: 'POST', body: JSON.stringify({ caption, imageUrl: dataUrl, colors: [], styleTags: [] }) });
+          await renderFeed();
+          // Find similar now
+          const blob = dataUrlToBlob(dataUrl);
+          await doShopSimilar(blob, caption || 'shop similar outfit', platform);
+        } catch (e) { setError(e.message || 'Failed to post'); }
+      };
+      reader.readAsDataURL(file);
+    });
+
+    $("clearFeed").addEventListener('click', () => { setFeed([]); renderFeed(); });
+
+    // Init
+    window.addEventListener('load', async () => {
+      renderFeed();
+      await loadWishlist();
+    });
+
+    // Logout
+    document.getElementById('logoutBtn').addEventListener('click', async () => {
+      try { await fetch('/auth/logout', { method: 'POST' }); } catch {}
+      try { localStorage.removeItem('token'); } catch {}
+      location.replace('/login.html');
+    });
+  </script>
+  <script src="/chatbot.js"></script>
+</body>
+</html>
