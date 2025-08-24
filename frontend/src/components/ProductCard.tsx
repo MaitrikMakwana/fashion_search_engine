@@ -61,6 +61,95 @@ const ProductCard: React.FC<ProductCardProps> = ({
     }
   };
 
+  // Helper function to parse and format price
+  const formatPrice = (priceString?: string): string => {
+    if (!priceString) return '';
+    
+    const priceStr = String(priceString).trim();
+    
+    // Handle common price patterns
+    // Pattern 1: ₹1,000 or $1,000 or €1,000
+    let match = priceStr.match(/[₹$€£]\s*([\d,]+(?:\.\d{2})?)/);
+    if (match) {
+      const cleanPrice = match[1].replace(/,/g, '');
+      const num = parseFloat(cleanPrice);
+      if (!isNaN(num)) {
+        return new Intl.NumberFormat('en-IN', {
+          style: 'currency',
+          currency: 'INR',
+          minimumFractionDigits: 0,
+          maximumFractionDigits: 0,
+        }).format(num);
+      }
+    }
+    
+    // Pattern 2: 1,000 or 1000 (without currency symbol)
+    match = priceStr.match(/(\d{1,3}(?:,\d{3})*(?:\.\d{2})?)/);
+    if (match) {
+      const cleanPrice = match[1].replace(/,/g, '');
+      const num = parseFloat(cleanPrice);
+      if (!isNaN(num)) {
+        return new Intl.NumberFormat('en-IN', {
+          style: 'currency',
+          currency: 'INR',
+          minimumFractionDigits: 0,
+          maximumFractionDigits: 0,
+        }).format(num);
+      }
+    }
+    
+    // Pattern 3: "Rs. 1,000" or "Price: 1000" or "1000 only"
+    match = priceStr.match(/(?:Rs?\.?\s*|₹\s*|price\s*:?\s*|cost\s*:?\s*)(\d{1,3}(?:,\d{3})*(?:\.\d{2})?)(?:\s*\/-|\s*only|\s*rs?)?/i);
+    if (match) {
+      const cleanPrice = match[1].replace(/,/g, '');
+      const num = parseFloat(cleanPrice);
+      if (!isNaN(num)) {
+        return new Intl.NumberFormat('en-IN', {
+          style: 'currency',
+          currency: 'INR',
+          minimumFractionDigits: 0,
+          maximumFractionDigits: 0,
+        }).format(num);
+      }
+    }
+    
+    // Pattern 4: Extract any number that looks like a price (3+ digits)
+    const allNumbers = priceStr.match(/\d{3,}/g);
+    if (allNumbers && allNumbers.length > 0) {
+      const candidates = allNumbers
+        .map(n => parseInt(n.replace(/,/g, ''), 10))
+        .filter(n => n > 100 && n < 1000000); // Reasonable price range
+      
+      if (candidates.length > 0) {
+        candidates.sort((a, b) => a - b);
+        const num = candidates[Math.floor(candidates.length / 2)];
+        return new Intl.NumberFormat('en-IN', {
+          style: 'currency',
+          currency: 'INR',
+          minimumFractionDigits: 0,
+          maximumFractionDigits: 0,
+        }).format(num);
+      }
+    }
+    
+    // Fallback: try to extract any number
+    const fallbackMatch = priceStr.match(/(\d+\.?\d*)/);
+    if (fallbackMatch) {
+      const num = parseFloat(fallbackMatch[1]);
+      if (!isNaN(num)) {
+        return new Intl.NumberFormat('en-IN', {
+          style: 'currency',
+          currency: 'INR',
+          minimumFractionDigits: 0,
+          maximumFractionDigits: 0,
+        }).format(num);
+      }
+    }
+    
+    // If all else fails, return the original price string
+    return priceString;
+  };
+
   const handleImageError = (e: React.SyntheticEvent<HTMLImageElement>) => {
     e.currentTarget.src = 'data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMzAwIiBoZWlnaHQ9IjQwMCIgdmlld0JveD0iMCAwIDMwMCA0MDAiIGZpbGw9Im5vbmUiIHhtbG5zPSJodHRwOi8vd3d3LnczLm9yZy8yMDAwL3N2ZyI+CjxyZWN0IHdpZHRoPSIzMDAiIGhlaWdodD0iNDAwIiBmaWxsPSIjRjNGNEY2Ii8+CjxwYXRoIGQ9Ik0xNTAgMTgwQzE2Ni41NjkgMTgwIDE4MCAxNjYuNTY5IDE4MCAxNTBDMTgwIDEzMy40MzEgMTY2LjU2OSAxMjAgMTUwIDEyMEMxMzMuNDMxIDEyMCAxMjAgMTMzLjQzMSAxMjAgMTUwQzEyMCAxNjYuNTY5IDEzMy40MzEgMTgwIDE1MCAxODBaIiBmaWxsPSIjOUI5QkEwIi8+CjxwYXRoIGQ9Ik0xNTAgMjAwQzE2Ni41NjkgMjAwIDE4MCAxODYuNTY5IDE4MCAxNzBDMTgwIDE1My40MzEgMTY2LjU2OSAxNDAgMTUwIDE0MEMxMzMuNDMxIDE0MCAxMjAgMTUzLjQzMSAxMjAgMTcwQzEyMCAxODYuNTY5IDEzMy40MzEgMjAwIDE1MCAyMDBaIiBmaWxsPSIjOUI5QkEwIi8+Cjx0ZXh0IHg9IjE1MCIgeT0iMjUwIiB0ZXh0LWFuY2hvcj0ibWlkZGxlIiBmaWxsPSIjNjc3NDhCIiBmb250LWZhbWlseT0iQXJpYWwiIGZvbnQtc2l6ZT0iMTQiPk5vIEltYWdlPC90ZXh0Pgo8L3N2Zz4K';
   };
@@ -98,7 +187,7 @@ const ProductCard: React.FC<ProductCardProps> = ({
         
         {product.price && (
           <p className="text-lg font-semibold text-gray-900">
-            {product.price}
+            {formatPrice(product.price)}
           </p>
         )}
         

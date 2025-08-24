@@ -557,11 +557,65 @@ async function searchProducts(searchQuery) {
 function parsePriceToNumber(price) {
   if (price == null) return null;
   if (typeof price === 'number') return price;
-  const s = String(price).replace(/[,\s]/g, '').replace(/[₹$€£]/g, '');
-  const m = s.match(/(\d+\.?\d*)/);
-  if (!m) return null;
-  const n = parseFloat(m[1]);
-  return Number.isFinite(n) ? n : null;
+  
+  const priceStr = String(price).trim();
+  
+  // Handle common price patterns
+  // Pattern 1: ₹1,000 or $1,000 or €1,000
+  let match = priceStr.match(/[₹$€£]\s*([\d,]+(?:\.\d{2})?)/);
+  if (match) {
+    const cleanPrice = match[1].replace(/,/g, '');
+    const num = parseFloat(cleanPrice);
+    if (Number.isFinite(num)) return num;
+  }
+  
+  // Pattern 2: 1,000 or 1000 (without currency symbol)
+  match = priceStr.match(/(\d{1,3}(?:,\d{3})*(?:\.\d{2})?)/);
+  if (match) {
+    const cleanPrice = match[1].replace(/,/g, '');
+    const num = parseFloat(cleanPrice);
+    if (Number.isFinite(num)) return num;
+  }
+  
+  // Pattern 3: "Rs. 1,000" or "Price: 1000" or "1000 only"
+  match = priceStr.match(/(?:Rs?\.?\s*|₹\s*|price\s*:?\s*|cost\s*:?\s*)(\d{1,3}(?:,\d{3})*(?:\.\d{2})?)(?:\s*\/-|\s*only|\s*rs?)?/i);
+  if (match) {
+    const cleanPrice = match[1].replace(/,/g, '');
+    const num = parseFloat(cleanPrice);
+    if (Number.isFinite(num)) return num;
+  }
+  
+  // Pattern 4: "1000-2000" range (take the first number)
+  match = priceStr.match(/(\d{1,3}(?:,\d{3})*(?:\.\d{2})?)/);
+  if (match) {
+    const cleanPrice = match[1].replace(/,/g, '');
+    const num = parseFloat(cleanPrice);
+    if (Number.isFinite(num)) return num;
+  }
+  
+  // Pattern 5: Extract any number that looks like a price (3+ digits)
+  const allNumbers = priceStr.match(/\d{3,}/g);
+  if (allNumbers && allNumbers.length > 0) {
+    // Find the most likely price (usually the largest reasonable number)
+    const candidates = allNumbers
+      .map(n => parseInt(n.replace(/,/g, ''), 10))
+      .filter(n => n > 100 && n < 1000000); // Reasonable price range
+    
+    if (candidates.length > 0) {
+      // Return the median or most common price
+      candidates.sort((a, b) => a - b);
+      return candidates[Math.floor(candidates.length / 2)];
+    }
+  }
+  
+  // Fallback: try to extract any number
+  const fallbackMatch = priceStr.match(/(\d+\.?\d*)/);
+  if (fallbackMatch) {
+    const num = parseFloat(fallbackMatch[1]);
+    if (Number.isFinite(num)) return num;
+  }
+  
+  return null;
 }
 
 function normalizeProduct(p) {

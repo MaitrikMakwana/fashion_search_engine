@@ -29,6 +29,59 @@ const ComparisonView: React.FC<ComparisonViewProps> = ({
     }).format(price);
   };
 
+  const parsePrice = (product: any): number => {
+    if (!product.price) return 0;
+    
+    const priceStr = String(product.price).trim();
+    
+    // Handle common price patterns
+    // Pattern 1: ₹1,000 or $1,000 or €1,000
+    let match = priceStr.match(/[₹$€£]\s*([\d,]+(?:\.\d{2})?)/);
+    if (match) {
+      const cleanPrice = match[1].replace(/,/g, '');
+      const num = parseFloat(cleanPrice);
+      if (!isNaN(num)) return num;
+    }
+    
+    // Pattern 2: 1,000 or 1000 (without currency symbol)
+    match = priceStr.match(/(\d{1,3}(?:,\d{3})*(?:\.\d{2})?)/);
+    if (match) {
+      const cleanPrice = match[1].replace(/,/g, '');
+      const num = parseFloat(cleanPrice);
+      if (!isNaN(num)) return num;
+    }
+    
+    // Pattern 3: "Rs. 1,000" or "Price: 1000" or "1000 only"
+    match = priceStr.match(/(?:Rs?\.?\s*|₹\s*|price\s*:?\s*|cost\s*:?\s*)(\d{1,3}(?:,\d{3})*(?:\.\d{2})?)(?:\s*\/-|\s*only|\s*rs?)?/i);
+    if (match) {
+      const cleanPrice = match[1].replace(/,/g, '');
+      const num = parseFloat(cleanPrice);
+      if (!isNaN(num)) return num;
+    }
+    
+    // Pattern 4: Extract any number that looks like a price (3+ digits)
+    const allNumbers = priceStr.match(/\d{3,}/g);
+    if (allNumbers && allNumbers.length > 0) {
+      const candidates = allNumbers
+        .map(n => parseInt(n.replace(/,/g, ''), 10))
+        .filter(n => n > 100 && n < 1000000); // Reasonable price range
+      
+      if (candidates.length > 0) {
+        candidates.sort((a, b) => a - b);
+        return candidates[Math.floor(candidates.length / 2)];
+      }
+    }
+    
+    // Fallback: try to extract any number
+    const fallbackMatch = priceStr.match(/(\d+\.?\d*)/);
+    if (fallbackMatch) {
+      const num = parseFloat(fallbackMatch[1]);
+      if (!isNaN(num)) return num;
+    }
+    
+    return 0;
+  };
+
   const getPriceTrend = (price: number) => {
     if (!comparison.priceStats) return 'neutral';
     const avg = comparison.priceStats.avg;
@@ -136,7 +189,7 @@ const ComparisonView: React.FC<ComparisonViewProps> = ({
         {comparison.companies.map((company) => {
           const products = comparison.companyGroups[company];
           const avgPrice = products.reduce((sum, p) => {
-            const price = parseFloat(p.price?.replace(/[^\d.]/g, '') || '0');
+            const price = parsePrice(p);
             return sum + price;
           }, 0) / products.length;
 
@@ -153,16 +206,14 @@ const ComparisonView: React.FC<ComparisonViewProps> = ({
                 <div className="text-right">
                   <p className="text-sm text-gray-600">Starting from</p>
                   <p className="text-lg font-bold text-green-600">
-                    {formatPrice(Math.min(...products.map(p => 
-                      parseFloat(p.price?.replace(/[^\d.]/g, '') || '0')
-                    )))}
+                    {formatPrice(Math.min(...products.map(p => parsePrice(p))))}
                   </p>
                 </div>
               </div>
 
               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
                 {products.map((product, index) => {
-                  const price = parseFloat(product.price?.replace(/[^\d.]/g, '') || '0');
+                  const price = parsePrice(product);
                   const trend = getPriceTrend(price);
                   const isSaved = wishlistItems.some(item => item.title === product.title);
 
