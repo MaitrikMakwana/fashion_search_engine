@@ -197,18 +197,18 @@ const Result: React.FC = () => {
       });
     }
 
-    // Apply price range filter
-    if (filters.minPrice !== undefined && filters.maxPrice !== undefined) {
-      filtered = filtered.filter(product => {
-        const price = parsePrice(product.price);
-        if (price === 0) return false; // Exclude products with no price
-        
-        const min = filters.minPrice!;
-        const max = filters.maxPrice === Infinity ? Infinity : filters.maxPrice!;
-        
-        return price >= min && (max === Infinity ? true : price <= max);
-      });
-    }
+            // Apply price range filter
+        if (filters.minPrice !== undefined && filters.maxPrice !== undefined) {
+          filtered = filtered.filter(product => {
+            const price = parsePrice(product.price);
+            if (price === 0) return false; // Exclude products with no price
+            
+            const min = filters.minPrice!;
+            const max = filters.maxPrice!;
+            
+            return price >= min && (max === Infinity ? true : price <= max);
+          });
+        }
 
     // Apply sorting
     if (sortOptions.sortBy === 'price') {
@@ -276,6 +276,7 @@ const Result: React.FC = () => {
     loadWishlist();
   }, [loadSearchResults, loadWishlist]);
 
+  // Apply filters and sorting whenever filters or sort options change
   useEffect(() => {
     applyFiltersAndSort();
   }, [applyFiltersAndSort]);
@@ -381,7 +382,7 @@ const Result: React.FC = () => {
                       } else {
                         const [min, max] = e.target.value.split('-').map(Number);
                         handleFilterChange('minPrice', min);
-                        handleFilterChange('maxPrice', max === Infinity ? Infinity : max);
+                        handleFilterChange('maxPrice', max);
                       }
                     }}
                     className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm"

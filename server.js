@@ -161,15 +161,35 @@ async function queryGeminiFromText(text) {
         'You are a fashion expert creating shopping search queries.',
         'TASK: Convert this description into a precise shopping search query for fashion items.',
         '',
-        'INCLUDE THESE ELEMENTS:',
+        'HANDLE THESE TYPES OF QUERIES:',
+        '1. SPECIFIC ITEMS: "red shirt" → "red shirt fashion casual"',
+        '2. STYLE DESCRIPTIONS: "summer outfits" → "summer fashion clothing casual wear"',
+        '3. SEASONAL STYLES: "winter clothes" → "winter fashion clothing warm wear"',
+        '4. OCCASION STYLES: "party dresses" → "party dresses women elegant formal"',
+        '5. GENERAL STYLES: "casual wear" → "casual fashion clothing everyday wear"',
+        '6. COLOR PREFERENCES: "blue clothes" → "blue clothing fashion casual"',
+        '7. MATERIAL PREFERENCES: "cotton clothes" → "cotton clothing fashion casual"',
+        '',
+        'INCLUDE THESE ELEMENTS WHEN RELEVANT:',
         '- Clothing type (shirt, dress, pants, shoes, bag, etc.)',
         '- Color if mentioned',
         '- Material if specified (cotton, denim, leather, silk, etc.)',
         '- Style (casual, formal, vintage, sporty, elegant, etc.)',
+        '- Season if mentioned (summer, winter, spring, autumn)',
         '- Gender if clear (men\'s, women\'s, unisex)',
         '- Distinctive features (buttons, patterns, fit, design elements)',
         '',
         'EXAMPLES:',
+        '- "summer outfits" → "summer dresses summer shirts summer pants casual wear"',
+        '- "winter clothes" → "winter jackets winter sweaters winter pants warm wear"',
+        '- "spring fashion" → "spring dresses spring tops spring jackets light wear"',
+        '- "autumn style" → "autumn jackets autumn sweaters autumn dresses seasonal wear"',
+        '- "party dresses" → "party dresses women elegant formal"',
+        '- "casual wear" → "casual t-shirts casual jeans casual dresses everyday wear"',
+        '- "formal attire" → "formal shirts formal pants formal dresses professional wear"',
+        '- "beach outfits" → "beach dresses beach shorts beach shirts summer casual"',
+        '- "office wear" → "office shirts office pants office dresses professional formal"',
+        '- "weekend style" → "weekend t-shirts weekend jeans weekend dresses casual relaxed"',
         '- "red cotton t-shirt casual women\'s fashion"',
         '- "black leather jacket men\'s biker style"',
         '- "blue denim jeans high-waisted women\'s"',
@@ -390,14 +410,122 @@ async function searchGoogleSite(searchQuery, site) {
   if (!resp.ok) throw new Error(`SerpAPI google(site:${site}) error: ${resp.status} ${await resp.text()}`);
   const json = await resp.json();
   const items = json?.organic_results || [];
-  return items.map(item => ({
-    title: item.title ?? null,
-    price: null, // price not extracted from organic results; fallback to null
-    link: item.link ?? null,
-    source: site.replace(/^www\./, ''),
-    thumbnail: item.thumbnail ?? item.thumbnail_url ?? null
-  }));
-}
+  
+  return items.map(item => {
+    // Generate a placeholder image based on the site and search query
+    let thumbnail = item.thumbnail ?? item.thumbnail_url ?? null;
+    
+    if (!thumbnail) {
+      // Create a placeholder image URL based on the site and content
+      const siteName = site.replace(/^www\./, '').replace('.com', '').replace('.in', '');
+      const queryWords = searchQuery.split(' ').slice(0, 2).join('-');
+      
+      // Platform-specific themed placeholders for all major e-commerce sites
+      if (site.includes('flipkart.com')) {
+        // Flipkart: Blue theme (#2874f0) - Flipkart's brand color
+        const flipkartMatch = item.link?.match(/flipkart\.com\/([^\/]+)\/([^\/]+)\/([^\/]+)/);
+        if (flipkartMatch) {
+          const category = flipkartMatch[1];
+          const subcategory = flipkartMatch[2];
+          const productId = flipkartMatch[3];
+          
+          // Create a more specific Flipkart-themed placeholder with category info
+          thumbnail = `https://via.placeholder.com/300x400/2874f0/ffffff?text=FLIPKART%5Cn${encodeURIComponent(category.toUpperCase())}%5Cn${encodeURIComponent(queryWords.toUpperCase())}`;
+        } else {
+          // Generic Flipkart placeholder with blue theme
+          thumbnail = `https://via.placeholder.com/300x400/2874f0/ffffff?text=FLIPKART%5Cn${encodeURIComponent(queryWords.toUpperCase())}`;
+        }
+      } else if (site.includes('myntra.com')) {
+        // Myntra: Pink theme (#ff3f6c) - Myntra's brand color
+        thumbnail = `https://via.placeholder.com/300x400/ff3f6c/ffffff?text=MYNTRA%5Cn${encodeURIComponent(queryWords.toUpperCase())}`;
+      } else if (site.includes('ajio.com')) {
+        // Ajio: Green theme (#00a9a9) - Ajio's brand color
+        thumbnail = `https://via.placeholder.com/300x400/00a9a9/ffffff?text=AJIO%5Cn${encodeURIComponent(queryWords.toUpperCase())}`;
+      } else if (site.includes('amazon.in')) {
+        // Amazon: Orange theme (#ff9900) - Amazon's brand color
+        thumbnail = `https://via.placeholder.com/300x400/ff9900/ffffff?text=AMAZON%5Cn${encodeURIComponent(queryWords.toUpperCase())}`;
+      } else if (site.includes('snapdeal.com')) {
+        // Snapdeal: Red theme (#ff6b35) - Snapdeal's brand color
+        thumbnail = `https://via.placeholder.com/300x400/ff6b35/ffffff?text=SNAPDEAL%5Cn${encodeURIComponent(queryWords.toUpperCase())}`;
+      } else if (site.includes('nykaa.com')) {
+        // Nykaa: Pink theme (#ff3f6c) - Nykaa's brand color
+        thumbnail = `https://via.placeholder.com/300x400/ff3f6c/ffffff?text=NYKAA%5Cn${encodeURIComponent(queryWords.toUpperCase())}`;
+      } else if (site.includes('purplle.com')) {
+        // Purplle: Purple theme (#8b5cf6) - Purplle's brand color
+        thumbnail = `https://via.placeholder.com/300x400/8b5cf6/ffffff?text=PURPLLE%5Cn${encodeURIComponent(queryWords.toUpperCase())}`;
+      } else if (site.includes('meesho.com')) {
+        // Meesho: Pink theme (#ff6b6b) - Meesho's brand color
+        thumbnail = `https://via.placeholder.com/300x400/ff6b6b/ffffff?text=MEESHO%5Cn${encodeURIComponent(queryWords.toUpperCase())}`;
+      } else if (site.includes('jiomart.com')) {
+        // JioMart: Blue theme (#0052cc) - JioMart's brand color
+        thumbnail = `https://via.placeholder.com/300x400/0052cc/ffffff?text=JIOMART%5Cn${encodeURIComponent(queryWords.toUpperCase())}`;
+      } else {
+        // Generic placeholder for other sites with neutral theme
+        thumbnail = `https://via.placeholder.com/300x400/6b7280/ffffff?text=${encodeURIComponent(siteName.toUpperCase())}%5Cn${encodeURIComponent(queryWords.toUpperCase())}`;
+      }
+    }
+    
+          // Enhanced logging for debugging
+      console.log(`Product: ${item.title?.substring(0, 50)}... | Site: ${site} | Has thumbnail: ${!!thumbnail} | Thumbnail: ${thumbnail?.substring(0, 100)}...`);
+      
+      return {
+        title: item.title ?? null,
+        price: null, // price not extracted from organic results; fallback to null
+        link: item.link ?? null,
+        source: site.replace(/^www\./, ''),
+        thumbnail: thumbnail,
+        // Add additional metadata for better product categorization
+        category: extractCategoryFromTitle(item.title || ''),
+        brand: extractBrandFromTitle(item.title || ''),
+        hasRealImage: !!item.thumbnail || !!item.thumbnail_url
+      };
+    });
+  }
+  
+  // Helper function to extract category from product title
+  function extractCategoryFromTitle(title) {
+    const titleLower = title.toLowerCase();
+    
+    // Clothing categories
+    if (titleLower.includes('shirt') || titleLower.includes('top') || titleLower.includes('tee')) return 'shirts';
+    if (titleLower.includes('dress') || titleLower.includes('gown')) return 'dresses';
+    if (titleLower.includes('pant') || titleLower.includes('jean') || titleLower.includes('trouser')) return 'pants';
+    if (titleLower.includes('skirt')) return 'skirts';
+    if (titleLower.includes('hoodie') || titleLower.includes('sweatshirt')) return 'hoodies';
+    if (titleLower.includes('jacket') || titleLower.includes('coat')) return 'outerwear';
+    if (titleLower.includes('suit') || titleLower.includes('blazer')) return 'formal';
+    
+    // Footwear categories
+    if (titleLower.includes('shoe') || titleLower.includes('sneaker') || titleLower.includes('boot')) return 'footwear';
+    if (titleLower.includes('sandal') || titleLower.includes('flip')) return 'sandals';
+    
+    // Accessories categories
+    if (titleLower.includes('bag') || titleLower.includes('purse') || titleLower.includes('handbag')) return 'bags';
+    if (titleLower.includes('jewelry') || titleLower.includes('necklace') || titleLower.includes('ring')) return 'jewelry';
+    if (titleLower.includes('watch') || titleLower.includes('clock')) return 'watches';
+    
+    return 'general';
+  }
+  
+  // Helper function to extract brand from product title
+  function extractBrandFromTitle(title) {
+    const titleLower = title.toLowerCase();
+    
+    // Popular fashion brands
+    const brands = [
+      'nike', 'adidas', 'puma', 'reebok', 'under armour',
+      'levi', 'wrangler', 'lee', 'calvin klein', 'tommy hilfiger',
+      'ralph lauren', 'h&m', 'zara', 'uniqlo', 'gap',
+      'forever 21', 'mango', 'bershka', 'pull&bear', 'stradivarius',
+      'myntra', 'ajio', 'amazon', 'flipkart', 'snapdeal'
+    ];
+    
+    for (const brand of brands) {
+      if (titleLower.includes(brand)) return brand.toUpperCase();
+    }
+    
+    return null;
+  }
 
 // ---- Trending: simple scraping via SERP + TF-IDF diversity ----
 function tokenize(text) {
@@ -471,28 +599,45 @@ function selectDiverse(items, titles, k) {
 }
 
 async function getTrending({ limit = 12 }) {
+  console.log(`Getting trending products with limit: ${limit}`);
+  
   const kwPool = [
     'trending fashion', 'best sellers', 'new arrivals', 'most popular',
-    'streetwear', 'summer collection', 'ethnic wear', 'sneakers', 't-shirts', 'hoodies'
+    'streetwear', 'summer collection', 'ethnic wear', 'sneakers', 't-shirts', 'hoodies',
+    'casual wear', 'formal wear', 'party wear', 'office wear', 'beach wear',
+    'men clothing', 'women dresses', 'kids fashion', 'accessories', 'footwear',
+    'winter wear', 'summer wear', 'party dresses', 'casual shirts', 'formal suits',
+    'denim jeans', 'cotton shirts', 'silk dresses', 'leather bags', 'sports shoes',
+    'ethnic kurtas', 'western tops', 'party gowns', 'casual sneakers', 'formal blazers'
   ];
-  const sites = ['myntra.com', 'ajio.com', 'amazon.in', 'flipkart.com'];
+  const sites = ['myntra.com', 'ajio.com', 'amazon.in', 'flipkart.com', 'snapdeal.com', 'meesho.com'];
 
   const results = [];
   // Pick up to 2 random keywords per site
   for (const site of sites) {
     const picked = kwPool.sort(() => Math.random() - 0.5).slice(0, 2);
+    console.log(`Searching ${site} with keywords: ${picked.join(', ')}`);
+    
     for (const kw of picked) {
       try {
         const items = await searchGoogleSite(kw, site);
+        console.log(`Found ${items.length} items from ${site} for "${kw}"`);
+        
         for (const it of items) {
-          if (it && it.title && it.link) results.push(it);
+          if (it && it.title && it.link) {
+            console.log(`Adding trending item: ${it.title} from ${it.source} with thumbnail: ${it.thumbnail ? 'Yes' : 'No'}`);
+            results.push(it);
+          }
         }
       } catch (e) {
+        console.error(`Error searching ${site} for "${kw}":`, e.message);
         // continue on error
       }
     }
   }
 
+  console.log(`Total results collected: ${results.length}`);
+  
   // Deduplicate by URL and title
   const seenLink = new Set();
   const deduped = [];
@@ -504,10 +649,20 @@ async function getTrending({ limit = 12 }) {
     seenLink.add(combo);
     deduped.push(it);
   }
+  
+  console.log(`After deduplication: ${deduped.length} items`);
 
   // Select diverse top-N via TF-IDF
   const titles = deduped.map(d => d.title || '');
   const diverse = selectDiverse(deduped, titles, Number(limit) || 12);
+  
+  console.log(`Final diverse selection: ${diverse.length} items`);
+  console.log(`Sample trending items:`, diverse.slice(0, 3).map(item => ({
+    title: item.title,
+    source: item.source,
+    hasThumbnail: !!item.thumbnail,
+    thumbnail: item.thumbnail
+  })));
 
   // Shuffle to vary order a bit
   diverse.sort(() => Math.random() - 0.5);
@@ -743,21 +898,31 @@ async function fetchRealTimePrice(product) {
     const source = product.source?.toLowerCase() || '';
     let price = null;
     
+    console.log(`Fetching price for ${product.title} from ${source}`);
+    
     // Fetch price based on the source
     if (source.includes('amazon')) {
       price = await fetchAmazonPrice(product.link);
+      console.log(`Amazon price result: ${price}`);
     } else if (source.includes('myntra')) {
       price = await fetchMyntraPrice(product.link);
+      console.log(`Myntra price result: ${price}`);
     } else if (source.includes('ajio')) {
       price = await fetchAjioPrice(product.link);
+      console.log(`Ajio price result: ${price}`);
     } else if (source.includes('flipkart')) {
       price = await fetchFlipkartPrice(product.link);
+      console.log(`Flipkart price result: ${price}`);
     } else if (source.includes('snapdeal')) {
       price = await fetchSnapdealPrice(product.link);
+      console.log(`Snapdeal price result: ${price}`);
     }
     
     if (price) {
+      console.log(`Price updated for ${product.title}: ₹${price}`);
       return { ...product, price: `₹${price}`, priceUpdated: true };
+    } else {
+      console.log(`No price found for ${product.title} from ${source}`);
     }
   } catch (error) {
     console.error(`Failed to fetch real-time price for ${product.title}:`, error);
@@ -815,11 +980,17 @@ async function fetchAmazonPrice(url) {
 async function fetchMyntraPrice(url) {
   try {
     const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), 5000); // 5 second timeout
+    const timeoutId = setTimeout(() => controller.abort(), 8000); // 8 second timeout
     
     const response = await fetch(url, {
       headers: {
-        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36'
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+        'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8',
+        'Accept-Language': 'en-US,en;q=0.5',
+        'Accept-Encoding': 'gzip, deflate, br',
+        'DNT': '1',
+        'Connection': 'keep-alive',
+        'Upgrade-Insecure-Requests': '1'
       },
       signal: controller.signal
     });
@@ -830,24 +1001,39 @@ async function fetchMyntraPrice(url) {
     
     const html = await response.text();
     
-    // Myntra price selectors
-    const priceSelectors = [
-      '.pdp-price',
-      '.pdp-discounted-price',
-      '.pdp-mrp',
-      '[data-testid="price"]'
+    // Enhanced Myntra price selectors with multiple patterns
+    const pricePatterns = [
+      // Pattern 1: Standard price classes
+      /<span[^>]*class="[^"]*(?:pdp-price|pdp-discounted-price|pdp-mrp)[^"]*"[^>]*>([^<]+)<\/span>/gi,
+      // Pattern 2: Data testid attributes
+      /<span[^>]*data-testid="[^"]*price[^"]*"[^>]*>([^<]+)<\/span>/gi,
+      // Pattern 3: Generic price patterns
+      /<span[^>]*class="[^"]*price[^"]*"[^>]*>([^<]+)<\/span>/gi,
+      // Pattern 4: Strong tags with price content
+      /<strong[^>]*>₹\s*([\d,]+)<\/strong>/gi,
+      // Pattern 5: Any span with price-like content
+      /<span[^>]*>₹\s*([\d,]+)<\/span>/gi,
+      // Pattern 6: Price in text content
+      /₹\s*([\d,]+)/gi
     ];
     
-    for (const selector of priceSelectors) {
-      const priceMatch = html.match(new RegExp(`<span[^>]*class="[^"]*${selector.replace('.', '')}[^"]*"[^>]*>([^<]+)</span>`));
-      if (priceMatch) {
-        const price = priceMatch[1].replace(/[^\d]/g, '');
-        if (price && !isNaN(parseInt(price))) {
-          return parseInt(price);
+    for (const pattern of pricePatterns) {
+      const matches = html.match(pattern);
+      if (matches && matches.length > 0) {
+        for (const match of matches) {
+          const priceMatch = match.match(/₹\s*([\d,]+)/);
+          if (priceMatch) {
+            const price = priceMatch[1].replace(/,/g, '');
+            if (price && !isNaN(parseInt(price)) && parseInt(price) > 100) {
+              console.log(`Myntra price found: ₹${price}`);
+              return parseInt(price);
+            }
+          }
         }
       }
     }
     
+    console.log('Myntra: No price found with any pattern');
     return null;
   } catch (error) {
     console.error('Myntra price fetch error:', error);
@@ -859,11 +1045,17 @@ async function fetchMyntraPrice(url) {
 async function fetchAjioPrice(url) {
   try {
     const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), 5000); // 5 second timeout
+    const timeoutId = setTimeout(() => controller.abort(), 8000); // 8 second timeout
     
     const response = await fetch(url, {
       headers: {
-        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36'
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+        'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8',
+        'Accept-Language': 'en-US,en;q=0.5',
+        'Accept-Encoding': 'gzip, deflate, br',
+        'DNT': '1',
+        'Connection': 'keep-alive',
+        'Upgrade-Insecure-Requests': '1'
       },
       signal: controller.signal
     });
@@ -874,24 +1066,37 @@ async function fetchAjioPrice(url) {
     
     const html = await response.text();
     
-    // Ajio price selectors
-    const priceSelectors = [
-      '.prod-sp',
-      '.prod-mrp',
-      '.price',
-      '.discounted-price'
+    // Enhanced Ajio price selectors with multiple patterns
+    const pricePatterns = [
+      // Pattern 1: Standard Ajio price classes
+      /<span[^>]*class="[^"]*(?:prod-sp|prod-mrp|price|discounted-price)[^"]*"[^>]*>([^<]+)<\/span>/gi,
+      // Pattern 2: Generic price classes
+      /<span[^>]*class="[^"]*price[^"]*"[^>]*>([^<]+)<\/span>/gi,
+      // Pattern 3: Strong tags with price content
+      /<strong[^>]*>₹\s*([\d,]+)<\/strong>/gi,
+      // Pattern 4: Any span with price-like content
+      /<span[^>]*>₹\s*([\d,]+)<\/span>/gi,
+      // Pattern 5: Price in text content
+      /₹\s*([\d,]+)/gi
     ];
     
-    for (const selector of priceSelectors) {
-      const priceMatch = html.match(new RegExp(`<span[^>]*class="[^"]*${selector.replace('.', '')}[^"]*"[^>]*>([^<]+)</span>`));
-      if (priceMatch) {
-        const price = priceMatch[1].replace(/[^\d]/g, '');
-        if (price && !isNaN(parseInt(price))) {
-          return parseInt(price);
+    for (const pattern of pricePatterns) {
+      const matches = html.match(pattern);
+      if (matches && matches.length > 0) {
+        for (const match of matches) {
+          const priceMatch = match.match(/₹\s*([\d,]+)/);
+          if (priceMatch) {
+            const price = priceMatch[1].replace(/,/g, '');
+            if (price && !isNaN(parseInt(price)) && parseInt(price) > 100) {
+              console.log(`Ajio price found: ₹${price}`);
+              return parseInt(price);
+            }
+          }
         }
       }
     }
     
+    console.log('Ajio: No price found with any pattern');
     return null;
   } catch (error) {
     console.error('Ajio price fetch error:', error);
@@ -907,7 +1112,13 @@ async function fetchFlipkartPrice(url) {
     
     const response = await fetch(url, {
       headers: {
-        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36'
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+        'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8',
+        'Accept-Language': 'en-US,en;q=0.5',
+        'Accept-Encoding': 'gzip, deflate, br',
+        'DNT': '1',
+        'Connection': 'keep-alive',
+        'Upgrade-Insecure-Requests': '1'
       },
       signal: controller.signal
     });
@@ -918,24 +1129,39 @@ async function fetchFlipkartPrice(url) {
     
     const html = await response.text();
     
-    // Flipkart price selectors
-    const priceSelectors = [
-      '._30jeq3',
-      '._16Jk6d',
-      '._1vC4OE',
-      '.price'
+    // Enhanced Flipkart price selectors with multiple patterns
+    const pricePatterns = [
+      // Pattern 1: Standard Flipkart price classes
+      /<div[^>]*class="[^"]*(?:30jeq3|16Jk6d|1vC4OE)[^"]*"[^>]*>([^<]+)<\/div>/gi,
+      // Pattern 2: Generic price classes
+      /<div[^>]*class="[^"]*price[^"]*"[^>]*>([^<]+)<\/div>/gi,
+      // Pattern 3: Span tags with price content
+      /<span[^>]*class="[^"]*price[^"]*"[^>]*>([^<]+)<\/span>/gi,
+      // Pattern 4: Strong tags with price content
+      /<strong[^>]*>₹\s*([\d,]+)<\/strong>/gi,
+      // Pattern 5: Any div with price-like content
+      /<div[^>]*>₹\s*([\d,]+)<\/div>/gi,
+      // Pattern 6: Price in text content
+      /₹\s*([\d,]+)/gi
     ];
     
-    for (const selector of priceSelectors) {
-      const priceMatch = html.match(new RegExp(`<div[^>]*class="[^"]*${selector.replace('.', '')}[^"]*"[^>]*>([^<]+)</div>`));
-      if (priceMatch) {
-        const price = priceMatch[1].replace(/[^\d]/g, '');
-        if (price && !isNaN(parseInt(price))) {
-          return parseInt(price);
+    for (const pattern of pricePatterns) {
+      const matches = html.match(pattern);
+      if (matches && matches.length > 0) {
+        for (const match of matches) {
+          const priceMatch = match.match(/₹\s*([\d,]+)/);
+          if (priceMatch) {
+            const price = priceMatch[1].replace(/,/g, '');
+            if (price && !isNaN(parseInt(price)) && parseInt(price) > 100) {
+              console.log(`Flipkart price found: ₹${price}`);
+              return parseInt(price);
+            }
+          }
         }
       }
     }
     
+    console.log('Flipkart: No price found with any pattern');
     return null;
   } catch (error) {
     console.error('Flipkart price fetch error:', error);
@@ -988,9 +1214,14 @@ async function fetchSnapdealPrice(url) {
 
   // Enhance products with real-time price fetching (optimized)
 async function enhanceProductPrices(products) {
-  // Limit to first 5 products for performance, and only fetch real-time prices for products with links
+  console.log(`Starting price enhancement for ${products.length} products`);
+  
+  // Create a copy of all products to work with
+  const enhancedProducts = [...products];
+  
+  // Limit to first 5 products for real-time price fetching (performance optimization)
   const productsToEnhance = products.slice(0, 5).filter(product => product.link);
-  const productsWithoutLinks = products.slice(0, 10).filter(product => !product.link);
+  console.log(`Will fetch real-time prices for ${productsToEnhance.length} products with links`);
   
   // Fetch real-time prices concurrently with timeout
   const enhancedProductsWithLinks = await Promise.allSettled(
@@ -1002,95 +1233,54 @@ async function enhanceProductPrices(products) {
     )
   );
   
-  // Process results
-  const enhancedProducts = [];
-  
-  // Add products with real-time prices
+  // Update the enhanced products array with real-time prices
   enhancedProductsWithLinks.forEach((result, index) => {
     if (result.status === 'fulfilled' && result.value.priceUpdated) {
-      enhancedProducts.push(result.value);
-    } else {
-      // Fallback to title extraction
-      const product = productsToEnhance[index];
-      let fallbackProduct = { ...product };
-      
-      // If no price is available, try to extract from title
-      if (!fallbackProduct.price || fallbackProduct.price === 'null') {
-        const priceMatch = fallbackProduct.title?.match(/₹?\s*(\d{1,3}(?:,\d{3})*(?:\.\d{2})?)/);
-        if (priceMatch) {
-          const price = priceMatch[1].replace(/,/g, '');
-          fallbackProduct.price = `₹${price}`;
-        } else {
-          // Try to find price patterns like "Rs. 999" or "999/-"
-          const altPriceMatch = fallbackProduct.title?.match(/(?:Rs?\.?\s*|₹\s*|price\s*:?\s*)(\d{1,3}(?:,\d{3})*(?:\.\d{2})?)(?:\s*\/-|\s*only)?/i);
-          if (altPriceMatch) {
-            const price = altPriceMatch[1].replace(/,/g, '');
-            fallbackProduct.price = `₹${price}`;
-          }
-        }
+      const originalIndex = products.indexOf(productsToEnhance[index]);
+      if (originalIndex !== -1) {
+        enhancedProducts[originalIndex] = result.value;
+        console.log(`Updated product ${originalIndex}: ${result.value.title} with price ${result.value.price}`);
       }
-      
-      // Ensure price has proper formatting
-      if (fallbackProduct.price && fallbackProduct.price !== 'null') {
-        // Remove any existing currency symbols and add ₹
-        const cleanPrice = fallbackProduct.price.replace(/[₹$€£]/g, '').trim();
-        if (cleanPrice && !isNaN(parseFloat(cleanPrice))) {
-          fallbackProduct.price = `₹${parseFloat(cleanPrice).toFixed(0)}`;
-        }
-      }
-      
-      enhancedProducts.push(fallbackProduct);
     }
   });
   
-  // Add products without links (apply title extraction)
-  productsWithoutLinks.forEach(product => {
-    let enhancedProduct = { ...product };
-    
-    // If no price is available, try to extract from title
-    if (!enhancedProduct.price || enhancedProduct.price === 'null') {
+  // Apply title-based price extraction to ALL products that don't have prices
+  enhancedProducts.forEach((product, index) => {
+    if (!product.price || product.price === 'null' || product.price === 'undefined') {
+      let enhancedProduct = { ...product };
+      
+      // Try to extract price from title
       const priceMatch = enhancedProduct.title?.match(/₹?\s*(\d{1,3}(?:,\d{3})*(?:\.\d{2})?)/);
       if (priceMatch) {
         const price = priceMatch[1].replace(/,/g, '');
         enhancedProduct.price = `₹${price}`;
+        enhancedProduct.priceUpdated = true;
+        console.log(`Extracted price from title for ${enhancedProduct.title}: ₹${price}`);
       } else {
-        // Try to find price patterns like "Rs. 999" or "999/-"
+        // Try alternative price patterns
         const altPriceMatch = enhancedProduct.title?.match(/(?:Rs?\.?\s*|₹\s*|price\s*:?\s*)(\d{1,3}(?:,\d{3})*(?:\.\d{2})?)(?:\s*\/-|\s*only)?/i);
         if (altPriceMatch) {
           const price = altPriceMatch[1].replace(/,/g, '');
           enhancedProduct.price = `₹${price}`;
+          enhancedProduct.priceUpdated = true;
+          console.log(`Extracted price from title (alt pattern) for ${enhancedProduct.title}: ₹${price}`);
         }
       }
-    }
-    
-    // Ensure price has proper formatting
-    if (enhancedProduct.price && enhancedProduct.price !== 'null') {
-      // Remove any existing currency symbols and add ₹
-      const cleanPrice = enhancedProduct.price.replace(/[₹$€£]/g, '').trim();
-      if (cleanPrice && !isNaN(parseFloat(cleanPrice))) {
-        enhancedProduct.price = `₹${parseFloat(cleanPrice).toFixed(0)}`;
+      
+      // Ensure price has proper formatting
+      if (enhancedProduct.price && enhancedProduct.price !== 'null' && enhancedProduct.price !== 'undefined') {
+        const cleanPrice = enhancedProduct.price.replace(/[₹$€£]/g, '').trim();
+        if (cleanPrice && !isNaN(parseFloat(cleanPrice))) {
+          enhancedProduct.price = `₹${parseFloat(cleanPrice).toFixed(0)}`;
+        }
       }
+      
+      enhancedProducts[index] = enhancedProduct;
     }
-    
-    enhancedProducts.push(enhancedProduct);
   });
   
-  // Add remaining products (beyond first 10) with basic price formatting
-  const remainingProducts = products.slice(10).map(product => {
-    let enhancedProduct = { ...product };
-    
-    // Basic price formatting for remaining products
-    if (enhancedProduct.price && enhancedProduct.price !== 'null') {
-      const cleanPrice = enhancedProduct.price.replace(/[₹$€£]/g, '').trim();
-      if (cleanPrice && !isNaN(parseFloat(cleanPrice))) {
-        enhancedProduct.price = `₹${parseFloat(cleanPrice).toFixed(0)}`;
-      }
-    }
-    
-    return enhancedProduct;
-  });
-  
-  return [...enhancedProducts, ...remainingProducts];
+  console.log(`Price enhancement completed. Returning ${enhancedProducts.length} products`);
+  return enhancedProducts;
 }
 
 // Generate comparison data by grouping products by company/source
@@ -1770,12 +1960,72 @@ app.post('/search', searchUpload.single('image'), async (req, res) => {
         const fashionTerms = ['shirt', 'dress', 'pant', 'jean', 'shoe', 'bag', 'jacket', 'coat', 'skirt', 'top', 'blouse', 'sneaker', 'boot', 'handbag', 'purse', 'jewelry', 'accessory'];
         const hasFashionTerms = fashionTerms.some(term => originalText.includes(term));
         
-        if (hasFashionTerms) {
+        // Check for style-based queries
+        const styleTerms = ['summer', 'winter', 'spring', 'autumn', 'casual', 'formal', 'party', 'elegant', 'sporty', 'vintage', 'modern', 'classic', 'trendy', 'outfit', 'clothes', 'clothing', 'wear', 'style', 'beach', 'office', 'weekend', 'everyday', 'seasonal', 'light', 'warm', 'professional', 'relaxed', 'attire'];
+        const hasStyleTerms = styleTerms.some(term => originalText.includes(term));
+        
+        if (hasFashionTerms && hasStyleTerms) {
+          // Text contains both fashion and style terms, enhance with context
+          searchQuery = `${originalText} fashion clothing`;
+        } else if (hasStyleTerms) {
+          // Style-based query (like "summer outfits")
+          if (originalText.includes('summer')) {
+            searchQuery = `summer dresses summer shirts summer pants summer shorts casual wear`;
+          } else if (originalText.includes('winter')) {
+            searchQuery = `winter jackets winter sweaters winter pants winter coats warm wear`;
+          } else if (originalText.includes('spring')) {
+            searchQuery = `spring dresses spring tops spring jackets spring pants light wear`;
+          } else if (originalText.includes('autumn') || originalText.includes('fall')) {
+            searchQuery = `autumn jackets autumn sweaters autumn dresses autumn pants seasonal wear`;
+          } else if (originalText.includes('casual')) {
+            searchQuery = `casual t-shirts casual jeans casual dresses casual shirts everyday wear`;
+          } else if (originalText.includes('party')) {
+            searchQuery = `party dresses party shirts party pants elegant formal wear`;
+          } else if (originalText.includes('formal')) {
+            searchQuery = `formal shirts formal pants formal dresses professional wear`;
+          } else if (originalText.includes('beach')) {
+            searchQuery = `beach dresses beach shorts beach shirts beach wear summer casual`;
+          } else if (originalText.includes('office')) {
+            searchQuery = `office shirts office pants office dresses professional formal wear`;
+          } else if (originalText.includes('weekend')) {
+            searchQuery = `weekend t-shirts weekend jeans weekend dresses casual relaxed wear`;
+          } else {
+            searchQuery = `${originalText} fashion clothing style`;
+          }
+        } else if (hasFashionTerms) {
           // Text already contains fashion terms, just add some context
           searchQuery = `${originalText} fashion style`;
         } else {
-          // Text doesn't contain fashion terms, add clothing context
-          searchQuery = `${originalText} fashion clothing style`;
+          // Check if it's a general style or outfit query
+          if (originalText.includes('outfit') || originalText.includes('clothes') || originalText.includes('clothing') || originalText.includes('wear')) {
+            // General outfit/clothing query
+            if (originalText.includes('summer')) {
+              searchQuery = `summer dresses summer shirts summer pants summer shorts casual wear`;
+            } else if (originalText.includes('winter')) {
+              searchQuery = `winter jackets winter sweaters winter pants winter coats warm wear`;
+            } else if (originalText.includes('spring')) {
+              searchQuery = `spring dresses spring tops spring jackets spring pants light wear`;
+            } else if (originalText.includes('autumn') || originalText.includes('fall')) {
+              searchQuery = `autumn jackets autumn sweaters autumn dresses autumn pants seasonal wear`;
+            } else if (originalText.includes('casual')) {
+              searchQuery = `casual t-shirts casual jeans casual dresses casual shirts everyday wear`;
+            } else if (originalText.includes('party')) {
+              searchQuery = `party dresses party shirts party pants elegant formal wear`;
+            } else if (originalText.includes('formal')) {
+              searchQuery = `formal shirts formal pants formal dresses professional wear`;
+            } else if (originalText.includes('beach')) {
+              searchQuery = `beach dresses beach shorts beach shirts beach wear summer casual`;
+            } else if (originalText.includes('office')) {
+              searchQuery = `office shirts office pants office dresses professional formal wear`;
+            } else if (originalText.includes('weekend')) {
+              searchQuery = `weekend t-shirts weekend jeans weekend dresses casual relaxed wear`;
+            } else {
+              searchQuery = `fashion dresses fashion shirts fashion pants trendy clothing`;
+            }
+          } else {
+            // Text doesn't contain fashion terms, add clothing context
+            searchQuery = `${originalText} fashion clothing style`;
+          }
         }
       }
     } else if (imageBuffer || imageUrl) {
@@ -1825,8 +2075,39 @@ app.post('/search', searchUpload.single('image'), async (req, res) => {
           } else if (improvedText.includes('jewelry') || improvedText.includes('necklace') || improvedText.includes('earring') || improvedText.includes('ring')) {
             searchQuery = `${improvedText} accessories fashion jewelry`;
           } else {
-            // Generic fashion search with the provided text
-            searchQuery = `${improvedText} fashion clothing style trendy`;
+                                 // Check for style-based queries in the text
+           const styleTerms = ['summer', 'winter', 'spring', 'autumn', 'casual', 'formal', 'party', 'elegant', 'sporty', 'vintage', 'modern', 'classic', 'trendy', 'outfit', 'clothes', 'clothing', 'wear', 'style', 'beach', 'office', 'weekend', 'everyday', 'seasonal', 'light', 'warm', 'professional', 'relaxed', 'attire'];
+          const hasStyleTerms = styleTerms.some(term => improvedText.includes(term));
+          
+                     if (hasStyleTerms) {
+             // Style-based query
+             if (improvedText.includes('summer')) {
+               searchQuery = `summer dresses summer shirts summer pants summer shorts casual wear`;
+             } else if (improvedText.includes('winter')) {
+               searchQuery = `winter jackets winter sweaters winter pants winter coats warm wear`;
+             } else if (improvedText.includes('spring')) {
+               searchQuery = `spring dresses spring tops spring jackets spring pants light wear`;
+             } else if (improvedText.includes('autumn') || improvedText.includes('fall')) {
+               searchQuery = `autumn jackets autumn sweaters autumn dresses autumn pants seasonal wear`;
+             } else if (improvedText.includes('casual')) {
+               searchQuery = `casual t-shirts casual jeans casual dresses casual shirts everyday wear`;
+             } else if (improvedText.includes('party')) {
+               searchQuery = `party dresses party shirts party pants elegant formal wear`;
+             } else if (improvedText.includes('formal')) {
+               searchQuery = `formal shirts formal pants formal dresses professional wear`;
+             } else if (improvedText.includes('beach')) {
+               searchQuery = `beach dresses beach shorts beach shirts beach wear summer casual`;
+             } else if (improvedText.includes('office')) {
+               searchQuery = `office shirts office pants office dresses professional formal wear`;
+             } else if (improvedText.includes('weekend')) {
+               searchQuery = `weekend t-shirts weekend jeans weekend dresses casual relaxed wear`;
+             } else {
+               searchQuery = `${improvedText} fashion clothing style`;
+             }
+           } else {
+             // Generic fashion search with the provided text
+             searchQuery = `${improvedText} fashion clothing style trendy`;
+           }
           }
         } else {
           // Enhanced image analysis fallback based on image properties and URL
@@ -1904,11 +2185,16 @@ app.post('/search', searchUpload.single('image'), async (req, res) => {
       products = applySort(products, sortBy, sortOrder);
     }
 
+    // Enhance products with real-time price fetching BEFORE stripping fields
+    console.log(`Enhancing prices for ${products.length} products...`);
+    console.log(`Before enhancement - Sample products:`, products.slice(0, 3).map(p => ({ title: p.title, price: p.price, source: p.source })));
+    
+    products = await enhanceProductPrices(products);
+    console.log(`Price enhancement completed. Sample products:`, products.slice(0, 3).map(p => ({ title: p.title, price: p.price, source: p.source })));
+
     // Strip internal fields
     products = stripInternalFields(products);
-
-    // Enhance products with real-time price fetching
-    products = await enhanceProductPrices(products);
+    console.log(`After stripping fields - Sample products:`, products.slice(0, 3).map(p => ({ title: p.title, price: p.price, source: p.source })));
 
     // Generate comparison data by grouping products by company/source
     const comparisonData = generateComparisonData(products);
